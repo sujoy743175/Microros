@@ -1,7 +1,0 @@
-.pio
-/CMakeLists.txt
-/CMakeListsPrivate.txt
-/cmake-build-*/ 
-/.idea/*
-/lib/ros_lib/*
-*.pyc
