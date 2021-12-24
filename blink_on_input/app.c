@@ -20,8 +20,6 @@
 // PINS
 #define LED_BUILTIN 2
 
-
-
 #define RCCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on line %d: %d. Aborting.\n",__LINE__,(int)temp_rc);vTaskDelete(NULL);}}
 #define RCSOFTCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on line %d: %d. Continuing.\n",__LINE__,(int)temp_rc);}}
 
@@ -33,35 +31,40 @@ rcl_subscription_t led_input_subscriber;
 std_msgs__msg__Int32 LedStateMsg;
 std_msgs__msg__Int32 LedInputMsg;
 
-
-
-
-
 //td_msgs__msg__Int32 LedInputMsg;
-
-
 
 
 void timer_callback(rcl_timer_t * timer, int64_t last_call_time)
 {
 	RCLC_UNUSED(last_call_time);
 	if (timer != NULL) {
+		LedStateMsg.data = gpio_get_level(LED_BUILTIN);
 		RCSOFTCHECK(rcl_publish(&led_state_publisher, &LedStateMsg, NULL));
-		LedStateMsg.data++;
+		//LedStateMsg.data++;
 	}
 }
 
 void subscription_callback(const void * msgin)
 {
 	const std_msgs__msg__Int32 * msg = (const std_msgs__msg__Int32 *)msgin;
+	/*global led_input_data = 0;
+	led_input_data = msg->data;
+	return led_input_data;*/
+	gpio_set_level(LED_BUILTIN, msg->data);
 
-    if((msg->data) == 0){
+    /*if((msg->data) == 0){
         gpio_set_level(LED_BUILTIN, 1);		
     }
 
     if((msg->data) == 1){
         gpio_set_level(LED_BUILTIN, 0);		
-    }	
+    }	*/
+}
+
+void blink() {
+
+			
+	
 }
 
 void setupPins() {
@@ -75,6 +78,8 @@ void setupPins() {
 
 void appMain(void * arg)
 {
+	setupPins();
+	blink();
 	rcl_allocator_t allocator = rcl_get_default_allocator();
 	rclc_support_t support;
 
@@ -83,21 +88,21 @@ void appMain(void * arg)
 
 	// create node
 	rcl_node_t node;
-	RCCHECK(rclc_node_init_default(&node, "freertos_int32_publisher", "", &support));
+	RCCHECK(rclc_node_init_default(&node, "blink_on_input", "", &support));
 
 	// create publisher
 	RCCHECK(rclc_publisher_init_default(
 		&led_state_publisher,
 		&node,
 		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
-		"freertos_int32_publisher"));
+		"led_state"));
 	
-	/*// create subscriber (...... THIS PART IS OBSTRUCTING PUBLISHING.......)
+	// create subscriber (...... THIS PART IS OBSTRUCTING PUBLISHING.......)
 	RCCHECK(rclc_subscription_init_default(
 		&led_input_subscriber,
 		&node,
 		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
-		"led_input"));*/
+		"led_input"));
 
 	// create timer,
 	rcl_timer_t timer;
@@ -112,11 +117,11 @@ void appMain(void * arg)
 	rclc_executor_t executor;
 	RCCHECK(rclc_executor_init(&executor, &support.context, 2, &allocator));
 	RCCHECK(rclc_executor_add_timer(&executor, &timer));
-	//RCCHECK(rclc_executor_add_subscription(&executor, &led_input_subscriber,&LedInputMsg,
-		//&subscription_callback, ON_NEW_DATA));
+	RCCHECK(rclc_executor_add_subscription(&executor, &led_input_subscriber,&LedInputMsg,
+		&subscription_callback, ON_NEW_DATA));
 
 
-	LedStateMsg.data = 0;
+	
 
 	while(1){
 		rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
@@ -124,9 +129,9 @@ void appMain(void * arg)
 	}
 
 	// free resources
-	RCCHECK(rcl_publisher_fini(&led_state_publisher, &node))
+	RCCHECK(rcl_publisher_fini(&led_state_publisher, &node));
 	RCCHECK(rcl_subscription_fini(&led_input_subscriber, &node));
-	RCCHECK(rcl_node_fini(&node))
+	RCCHECK(rcl_node_fini(&node));
 
   	vTaskDelete(NULL);
 }
